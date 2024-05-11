@@ -1258,29 +1258,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fedimint-nwc"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bitcoin 0.30.2",
- "bitcoin 0.31.2",
- "clap",
- "hex",
- "home",
- "lightning-invoice 0.30.0",
- "log",
- "multimint",
- "nostr",
- "nostr-sdk",
- "pretty_env_logger",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "url",
-]
-
-[[package]]
 name = "fedimint-rocksdb"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2768,6 +2745,29 @@ name = "pkg-config"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
+
+[[package]]
+name = "pnyxtr"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitcoin 0.30.2",
+ "bitcoin 0.31.2",
+ "clap",
+ "hex",
+ "home",
+ "lightning-invoice 0.30.0",
+ "log",
+ "multimint",
+ "nostr",
+ "nostr-sdk",
+ "pretty_env_logger",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "url",
+]
 
 [[package]]
 name = "poly1305"

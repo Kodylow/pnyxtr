@@ -1,7 +1,13 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::config::Config;
-use crate::payments::PaymentTracker;
+use std::collections::{HashMap, HashSet};
+use std::fs::{create_dir_all, File};
+use std::io::{BufReader, Write};
+use std::path::Path;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+
 use anyhow::anyhow;
 use bitcoin::hashes::hex::FromHex;
 use bitcoin::hashes::{sha256, Hash};
@@ -16,16 +22,12 @@ use nostr::nips::nip47::*;
 use nostr::{Event, EventBuilder, EventId, Filter, JsonUtil, Keys, Kind, Tag, Timestamp};
 use nostr_sdk::{Client, RelayPoolNotification};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::fs::{create_dir_all, File};
-use std::io::{BufReader, Write};
-use std::path::Path;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio::{select, spawn};
+
+use crate::config::Config;
+use crate::payments::PaymentTracker;
 
 mod config;
 mod payments;

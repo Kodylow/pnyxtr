@@ -1,5 +1,5 @@
 [package]
-name = "fedimint-nwc"
+name = "pnyxtr"
 version = "0.1.0"
 edition = "2021"
 description = "Nostr Wallet Connect to a Fedimint Client (Fork of benthecarman/nostr-wallet-connect-lnd)"

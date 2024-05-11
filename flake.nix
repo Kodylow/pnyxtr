@@ -1,5 +1,5 @@
 {
-  description = "A Fedimint Nostr Wallet Connector";
+  description = "Pnyxtr: Nostr Wallet Connect to a Fedimint Client";
 
   inputs = {
     nixpkgs = { url = "github:nixos/nixpkgs/nixos-23.11"; };
@@ -27,7 +27,7 @@
         flakeboxLib = flakebox.lib.${system} { };
         rustSrc = flakeboxLib.filterSubPaths {
           root = builtins.path {
-            name = "gossip";
+            name = "pnyxtr";
             path = ./.;
           };
           paths = [ "Cargo.toml" "Cargo.lock" ".cargo" "src" ];
@@ -78,15 +78,15 @@
               workspaceDeps = craneLib.buildWorkspaceDepsOnly { };
               workspaceBuild =
                 craneLib.buildWorkspace { cargoArtifacts = workspaceDeps; };
-              fedimint-nwc = craneLib.buildPackageGroup {
-                pname = "fedimint-nwc";
-                packages = [ "fedimint-nwc" ];
-                mainProgram = "fedimint-nwc";
+              pnyxtr = craneLib.buildPackageGroup {
+                pname = "pnyxtr";
+                packages = [ "pnyxtr" ];
+                mainProgram = "pnyxtr";
               };
             });
       in {
         legacyPackages = outputs;
-        packages = { default = outputs.fedimint-nwc; };
+        packages = { default = outputs.pnyxtr; };
         devShells = flakeboxLib.mkShells {
           packages = [ ];
           buildInputs = commonArgs.buildInputs;
