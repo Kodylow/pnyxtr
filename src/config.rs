@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use bitcoin::Network;
 use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
