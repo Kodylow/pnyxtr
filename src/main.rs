@@ -17,6 +17,7 @@ use bitcoin_30::secp256k1::ThirtyTwoByteHash;
 use clap::Parser;
 use lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription};
 use log::{debug, error, info};
+use multimint::MultiMint;
 use nostr::nips::nip04;
 use nostr::nips::nip47::*;
 use nostr::{Event, EventBuilder, EventId, Filter, JsonUtil, Keys, Kind, Tag, Timestamp};
@@ -49,23 +50,9 @@ async fn main() -> anyhow::Result<()> {
     let config: Config = Config::parse();
     let keys = get_keys(&config.keys_file);
 
-    let mut lnd_client = tonic_openssl_lnd::connect(
-        config.lnd_host.clone(),
-        config.lnd_port,
-        config.cert_file(),
-        config.macaroon_file(),
-    )
-    .await
-    .expect("failed to connect");
+    let mut multimint_client = MultiMint::new(config.data_dir.clone()).await?;
 
-    let mut ln_client = lnd_client.lightning().clone();
-    let lnd_info: GetInfoResponse = ln_client
-        .get_info(GetInfoRequest {})
-        .await
-        .expect("Failed to get lnd info")
-        .into_inner();
-
-    info!("Connected to lnd: {}", lnd_info.identity_pubkey);
+    info!("Connected to multimint");
 
     let uri = NostrWalletConnectURI::new(
         keys.server_keys().public_key(),
@@ -106,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let active_requests = Arc::new(RwLock::new(HashSet::new()));
     let active_requests_clone = active_requests.clone();
     spawn(async move {
-        if let Err(e) = event_loop(config, keys, lnd_client, active_requests_clone).await {
+        if let Err(e) = event_loop(config, keys, multimint_client, active_requests_clone).await {
             error!("Error: {e}");
         }
     });
@@ -131,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
 async fn event_loop(
     config: Config,
     mut keys: Nip47Keys,
-    mut lnd_client: LndClient,
+    mut multimint_client: MultiMint,
     active_requests: Arc<RwLock<HashSet<EventId>>>,
 ) -> anyhow::Result<()> {
     let tracker = Arc::new(Mutex::new(PaymentTracker::new()));
@@ -189,7 +176,7 @@ async fn event_loop(
                                 let config = config.clone();
                                 let client = client.clone();
                                 let tracker = tracker.clone();
-                                let lnd = lnd_client.lightning().clone();
+                                let multimint_client = multimint_client.clone();
 
                                 spawn(async move {
                                     let event_id = event.id;
@@ -199,7 +186,7 @@ async fn event_loop(
 
                                     match tokio::time::timeout(
                                         Duration::from_secs(60),
-                                        handle_nwc_request(*event, keys, config, &client, tracker, lnd),
+                                        handle_nwc_request(*event, keys, config, &client, tracker, multimint_client),
                                     )
                                     .await
                                     {
@@ -239,7 +226,7 @@ async fn handle_nwc_request(
     config: Config,
     client: &Client,
     tracker: Arc<Mutex<PaymentTracker>>,
-    lnd: LndLightningClient,
+    multimint_client: MultiMint,
 ) -> anyhow::Result<()> {
     let decrypted = nip04::decrypt(
         &keys.server_key.into(),
@@ -255,7 +242,7 @@ async fn handle_nwc_request(
         RequestParams::MultiPayInvoice(params) => {
             for inv in params.invoices {
                 let params = RequestParams::PayInvoice(inv);
-                let lnd = lnd.clone();
+                let multimint_client = multimint_client.clone();
                 let tracker = tracker.clone();
                 let keys = keys.clone();
                 let config = config.clone();
@@ -263,7 +250,14 @@ async fn handle_nwc_request(
                 let event = event.clone();
                 spawn(async move {
                     handle_nwc_params(
-                        params, req.method, &event, &keys, &config, &client, tracker, lnd,
+                        params,
+                        req.method,
+                        &event,
+                        &keys,
+                        &config,
+                        &client,
+                        tracker,
+                        multimint_client,
                     )
                     .await
                 })
@@ -275,7 +269,7 @@ async fn handle_nwc_request(
         RequestParams::MultiPayKeysend(params) => {
             for inv in params.keysends {
                 let params = RequestParams::PayKeysend(inv);
-                let lnd = lnd.clone();
+                let multimint_client = multimint_client.clone();
                 let tracker = tracker.clone();
                 let keys = keys.clone();
                 let config = config.clone();
@@ -283,7 +277,14 @@ async fn handle_nwc_request(
                 let event = event.clone();
                 spawn(async move {
                     handle_nwc_params(
-                        params, req.method, &event, &keys, &config, &client, tracker, lnd,
+                        params,
+                        req.method,
+                        &event,
+                        &keys,
+                        &config,
+                        &client,
+                        tracker,
+                        multimint_client,
                     )
                     .await
                 })
@@ -294,7 +295,14 @@ async fn handle_nwc_request(
         }
         params => {
             handle_nwc_params(
-                params, req.method, &event, &keys, &config, client, tracker, lnd,
+                params,
+                req.method,
+                &event,
+                &keys,
+                &config,
+                client,
+                tracker,
+                multimint_client,
             )
             .await
         }
@@ -309,7 +317,7 @@ async fn handle_nwc_params(
     config: &Config,
     client: &Client,
     tracker: Arc<Mutex<PaymentTracker>>,
-    mut lnd: LndLightningClient,
+    mut multimint_client: MultiMint,
 ) -> anyhow::Result<()> {
     let mut d_tag: Option<Tag> = None;
     let content = match params {
@@ -336,7 +344,7 @@ async fn handle_nwc_params(
             // verify amount, convert to msats
             match error_msg {
                 None => {
-                    match pay_invoice(invoice, lnd, method).await {
+                    match pay_invoice(invoice, multimint_client, method).await {
                         Ok(content) => {
                             // add payment to tracker
                             tracker.lock().await.add_payment(msats);
@@ -389,7 +397,7 @@ async fn handle_nwc_params(
                         params.preimage,
                         params.tlv_records,
                         msats,
-                        lnd,
+                        multimint_client,
                         method,
                     )
                     .await
