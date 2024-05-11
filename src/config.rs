@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
@@ -23,14 +24,14 @@ pub struct Config {
     pub data_dir: PathBuf,
 }
 
-fn home_directory() -> String {
-    let buf = home::home_dir().expect("Failed to get home dir");
+fn home_directory() -> Result<String, anyhow::Error> {
+    let buf = home::home_dir().context("Failed to get home dir")?;
     let str = format!("{}", buf.display());
 
     // to be safe remove possible trailing '/' and
     // we can manually add it to paths
     match str.strip_suffix('/') {
-        Some(stripped) => stripped.to_string(),
-        None => str,
+        Some(stripped) => Ok(stripped.to_string()),
+        None => Ok(str),
     }
 }

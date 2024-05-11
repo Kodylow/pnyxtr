@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use bitcoin::hashes::hex::FromHex;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::rand::rngs::OsRng;
@@ -48,7 +48,7 @@ const METHODS: [Method; 8] = [
 async fn main() -> anyhow::Result<()> {
     pretty_env_logger::try_init()?;
     let config: Config = Config::parse();
-    let keys = get_keys(&config.keys_file);
+    let keys = get_keys(&config.keys_file)?;
 
     let mut multimint_client = MultiMint::new(config.data_dir.clone()).await?;
 
@@ -69,14 +69,20 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn a task to listen for shutdown signals
     spawn(async move {
-        let mut term_signal = signal(SignalKind::terminate())
-            .map_err(|e| error!("failed to install TERM signal handler: {e}"))
-            .unwrap();
-        let mut int_signal = signal(SignalKind::interrupt())
-            .map_err(|e| {
+        let mut term_signal = match signal(SignalKind::terminate()) {
+            Ok(signal) => signal,
+            Err(e) => {
+                error!("failed to install TERM signal handler: {e}");
+                return;
+            }
+        };
+        let mut int_signal = match signal(SignalKind::interrupt()) {
+            Ok(signal) => signal,
+            Err(e) => {
                 error!("failed to install INT signal handler: {e}");
-            })
-            .unwrap();
+                return;
+            }
+        };
 
         select! {
             _ = term_signal.recv() => {
@@ -703,15 +709,17 @@ struct Nip47Keys {
 }
 
 impl Nip47Keys {
-    fn generate() -> Self {
+    fn generate() -> Result<Self, anyhow::Error> {
         let server_key = Keys::generate();
         let user_key = Keys::generate();
 
-        Nip47Keys {
-            server_key: **server_key.secret_key().unwrap(),
-            user_key: **user_key.secret_key().unwrap(),
+        Ok(Nip47Keys {
+            server_key: **server_key
+                .secret_key()
+                .context("Failed to get secret key")?,
+            user_key: **user_key.secret_key().context("Failed to get secret key")?,
             sent_info: false,
-        }
+        })
     }
 
     fn server_keys(&self) -> Keys {
@@ -723,30 +731,30 @@ impl Nip47Keys {
     }
 }
 
-fn get_keys(keys_file: &str) -> Nip47Keys {
+fn get_keys(keys_file: &str) -> Result<Nip47Keys, anyhow::Error> {
     let path = Path::new(keys_file);
     match File::open(path) {
         Ok(file) => {
             let reader = BufReader::new(file);
-            serde_json::from_reader(reader).expect("Could not parse JSON")
+            serde_json::from_reader(reader).context("Could not parse JSON")
         }
         Err(_) => {
-            let keys = Nip47Keys::generate();
-            write_keys(keys, path)
+            let keys = Nip47Keys::generate()?;
+            Ok(write_keys(keys, path)?)
         }
     }
 }
 
-fn write_keys(keys: Nip47Keys, path: &Path) -> Nip47Keys {
-    let json_str = serde_json::to_string(&keys).expect("Could not serialize data");
+fn write_keys(keys: Nip47Keys, path: &Path) -> Result<Nip47Keys, anyhow::Error> {
+    let json_str = serde_json::to_string(&keys).context("Could not serialize data")?;
 
     if let Some(parent) = path.parent() {
-        create_dir_all(parent).expect("Could not create directory");
+        create_dir_all(parent).context("Could not create directory")?;
     }
 
-    let mut file = File::create(path).expect("Could not create file");
+    let mut file = File::create(path).context("Could not create file")?;
     file.write_all(json_str.as_bytes())
-        .expect("Could not write to file");
+        .context("Could not write to file")?;
 
-    keys
+    Ok(keys)
 }
