@@ -1,4 +1,6 @@
-# Pnyxtr: Nostr Wallet Connect to a Fedimint Client (Fork of benthecarman/nostr-wallet-connect-lnd)
+# Pnyxtr: Nostr Wallet Connect to a Fedimint Client
+
+(Fork of benthecarman/nostr-wallet-connect-lnd)
 
 This lets you create a fedimint client controlled by nostr wallet connect uris.
 
