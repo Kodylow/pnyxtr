@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use clap::Parser;
 
@@ -21,7 +19,7 @@ pub struct Config {
     pub daily_limit: u64,
     #[clap(long, required = true)]
     /// Datadir for multimint
-    pub data_dir: PathBuf,
+    pub data_dir: String,
 }
 
 fn home_directory() -> Result<String, anyhow::Error> {
